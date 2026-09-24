@@ -1,10 +1,12 @@
 """Flask application factory for the chat viewer."""
+import ipaddress
 import logging
 import os
 import sys
 import threading
 import webbrowser
-from flask import Flask, render_template, jsonify
+from flask import Flask, render_template, jsonify, request
+from urllib.parse import urlsplit
 from engine.version import VERSION as __version__
 
 logger = logging.getLogger(__name__)
@@ -51,6 +53,45 @@ def _resolve_path(relative_path: str) -> str:
         return os.path.join(base, relative_path)
 
 
+def _host_allowed(host_header: str) -> bool:
+    """Host 头只允许 localhost 或 IP 字面量。
+
+    防 DNS rebinding：攻击者网页必须用**自己的域名**解析到 127.0.0.1 才能读本服务，
+    这时 Host 头是那个域名 —— 直接拒绝即可。用 0.0.0.0 开放局域网时，别的设备用
+    IP 访问，Host 也是 IP 字面量，不受影响。
+    """
+    if not host_header:
+        return False
+    try:
+        hostname = urlsplit('//' + host_header).hostname or ''
+    except ValueError:
+        return False
+    if hostname == 'localhost':
+        return True
+    try:
+        ipaddress.ip_address(hostname)
+        return True
+    except ValueError:
+        return False
+
+
+def _is_cross_site_write() -> bool:
+    """非 GET 请求若来自别的网站（CSRF），返回 True。
+
+    浏览器对所有跨站 POST（fetch no-cors / 表单）都会带 Origin；
+    较新的浏览器还带 Sec-Fetch-Site。命令行工具（curl / 测试客户端）两者都不带，放行。
+    """
+    if request.method in ('GET', 'HEAD', 'OPTIONS'):
+        return False
+    origin = request.headers.get('Origin')
+    if origin is not None:
+        try:
+            return urlsplit(origin).netloc.lower() != (request.host or '').lower()
+        except ValueError:
+            return True
+    return request.headers.get('Sec-Fetch-Site') == 'cross-site'
+
+
 def create_app(decrypted_dir: str, wxid: str = None, db_dir: str = None) -> Flask:
     app = Flask(__name__,
         template_folder=_resolve_path('templates'),
@@ -68,6 +109,14 @@ def create_app(decrypted_dir: str, wxid: str = None, db_dir: str = None) -> Flas
     app.json.ensure_ascii = False
     # 模板改动即时生效（打包后模板在 _MEIPASS 里只读，无额外开销）
     app.config['TEMPLATES_AUTO_RELOAD'] = True
+
+    # 本服务无登录、可读全部聊天记录：拦住 DNS rebinding 与跨站写请求（CSRF）
+    @app.before_request
+    def _guard_local_only():
+        if not _host_allowed(request.headers.get('Host', '')):
+            return jsonify({'error': 'forbidden_host'}), 403
+        if _is_cross_site_write():
+            return jsonify({'error': 'cross_site_request_blocked'}), 403
 
     # Inject version into all template contexts
     @app.context_processor

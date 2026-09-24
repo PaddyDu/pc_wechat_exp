@@ -15,7 +15,7 @@
         <option value="0.0.0.0">0.0.0.0（局域网，供手机 ChatLab 连接）</option>
       </select></div>
     <div style="flex:1"><label>端口</label><input id="cfg-port" type="number" value="8765" min="1" max="65535"></div>
-    <div style="flex:2"><label>访问 Token（可选，留空则不校验）</label><input id="cfg-token" placeholder="例如: mytoken123"></div>
+    <div style="flex:2"><label>访问 Token（留空则自动生成随机 Token）</label><input id="cfg-token" placeholder="例如: mytoken123"></div>
     <div><label>&nbsp;</label><button id="btn-start" class="btn btn-primary">启动服务</button></div>
     <div><label>&nbsp;</label><button id="btn-stop" class="btn">停止服务</button></div>
   </div>

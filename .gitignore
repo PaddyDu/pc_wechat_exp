@@ -1,0 +1,20 @@
+# ⚠️ 隐私：以下目录/文件包含解密后的聊天记录、数据库密钥或 API Key，绝不能提交
+/output/
+/backup/
+/export/
+/avatar_cache/
+.wechat_exp_config.json
+*_keys*.json
+all_keys.json
+keys_export_*.txt
+*.db
+*.db-wal
+*.db-shm
+
+# Python / 构建产物
+__pycache__/
+*.pyc
+.pytest_cache/
+.coverage
+/build/
+/dist/

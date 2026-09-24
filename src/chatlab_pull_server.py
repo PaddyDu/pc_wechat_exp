@@ -13,8 +13,10 @@
 
 认证：可选 Bearer Token（--token），SSE 亦支持 ?access_token=
 """
+import hmac
 import json
 import os
+import secrets
 import threading
 import time
 
@@ -105,7 +107,9 @@ def create_pull_app(decrypted_dir, own_wxid=None, token=None, print_fn=None,
     Args:
         decrypted_dir: 解密后的数据目录（backup 输出目录）
         own_wxid: 本人 wxid（用于把"我"映射为 platformId）
-        token: 可选 Bearer Token；为 None 时不校验
+        token: Bearer Token；为空时自动生成随机 Token（通过 helper["token"] 取回）。
+            不允许无 Token 运行：本服务带 `Access-Control-Allow-Origin: *`，
+            无 Token 时浏览器里任意网页都能跨域读走全部聊天记录。
         print_fn: 日志函数
     Returns: (app, helper)
     """
@@ -115,6 +119,7 @@ def create_pull_app(decrypted_dir, own_wxid=None, token=None, print_fn=None,
 
     if print_fn is None:
         print_fn = print
+    token = (token or "").strip() or secrets.token_urlsafe(16)
 
     app = Flask(__name__)
     app.json.ensure_ascii = False
@@ -142,13 +147,12 @@ def create_pull_app(decrypted_dir, own_wxid=None, token=None, print_fn=None,
             return chats
 
     def _auth_ok():
-        if not token:
-            return True
-        if request.args.get("access_token") == token:
+        qs = request.args.get("access_token")
+        if qs is not None and hmac.compare_digest(qs, token):
             return True
         hdr = request.headers.get("Authorization", "")
         if hdr.startswith("Bearer "):
-            return hdr[7:].strip() == token
+            return hmac.compare_digest(hdr[7:].strip(), token)
         return False
 
     def _cors(resp):
@@ -366,7 +370,7 @@ def create_pull_app(decrypted_dir, own_wxid=None, token=None, print_fn=None,
         _v1_rule = "/api/v1" + _rule if _rule != "/" else "/api/v1"
         app.add_url_rule(_v1_rule, "v1" + _view.__name__, _view, methods=_methods)
 
-    helper = {"chats": _chats, "marks": _latest_marks, "cache": cache}
+    helper = {"chats": _chats, "marks": _latest_marks, "cache": cache, "token": token}
     return app, helper
 
 
@@ -442,11 +446,10 @@ def run_pull_server(decrypted_dir, own_wxid=None, host="127.0.0.1", port=8765,
     print_fn("ChatLab Pull 数据源已启动")
     print_fn("  数据目录: " + str(decrypted_dir))
     print_fn("  监听地址: http://%s:%d" % (host, port))
-    print_fn("  认证: " + ("Bearer Token 已启用" if token else "无（本地使用）"))
+    print_fn("  认证: Bearer Token 已启用" + ("" if token else "（未指定 --token，已随机生成）"))
     print_fn("")
     print_fn("在 ChatLab 中添加远程数据源，地址填: http://%s:%d" % (host, port))
-    if token:
-        print_fn("  Token: " + token)
+    print_fn("  Token: " + helper["token"])
     print_fn("按 Ctrl+C 停止")
 
     # 后台预热会话列表（scan_chats 需扫描全部分片，较慢）；

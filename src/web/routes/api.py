@@ -628,7 +628,11 @@ def asr_model_file(relpath):
     from engine.services.asr_model import model_roots
     rel = relpath.replace("/", os.sep)
     for root in model_roots():
-        p = os.path.join(root, rel)
+        root_abs = os.path.realpath(root)
+        p = os.path.realpath(os.path.join(root_abs, rel))
+        # 防路径穿越（../ 或绝对路径）：只允许读模型目录内的文件
+        if os.path.commonpath([root_abs, p]) != root_abs:
+            continue
         if os.path.isfile(p):
             if p.lower().endswith(".onnx"):
                 mime = "application/octet-stream"

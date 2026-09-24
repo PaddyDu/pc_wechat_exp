@@ -181,6 +181,7 @@ def pull_start():
             own_wxid=current_app.config.get("WXID"),
             token=token or None,
             print_fn=_log, verbose=False)
+        token = helper["token"]  # 未填写时由 create_pull_app 随机生成
         server = make_server(host, chosen, app, threaded=True)
     except Exception as e:
         _log("启动失败: %s" % e)
@@ -201,8 +202,7 @@ def pull_start():
             "server": server,
             "thread": thread,
         })
-    _log("服务已启动: http://%s:%d（%s）" % (host, chosen,
-                                              "已启用 Token" if token else "未启用 Token"))
+    _log("服务已启动: http://%s:%d（已启用 Token）" % (host, chosen))
 
     def _prewarm():
         try:

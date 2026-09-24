@@ -1009,7 +1009,7 @@ def main():
                     help='监听地址 (默认: 127.0.0.1；局域网可填 0.0.0.0)')
     cp.add_argument('--port', type=int, default=8765, help='监听端口 (默认: 8765)')
     cp.add_argument('--token', default=None,
-                    help='可选 Bearer Token（设置后 ChatLab 需填相同 Token）')
+                    help='Bearer Token（ChatLab 需填相同 Token；不指定则随机生成并打印）')
 
     # import-keys
     kp = sub.add_parser('import-keys',
